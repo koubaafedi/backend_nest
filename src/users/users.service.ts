@@ -1,4 +1,5 @@
 import {
+  ConflictException,
   Injectable,
   NotFoundException,
   UnauthorizedException,
@@ -10,7 +11,6 @@ import { User } from './entities/user.entity';
 import { CreateUserDTO } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { Event } from 'src/events/entities/event.entity';
-import { SignInDTO } from './dto/sign-in.dto';
 import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
 
@@ -30,12 +30,12 @@ export class UsersService extends CrudService<User> {
     }
     return user;
   }
-  async signIn(signinDto: SignInDTO) {
-    const user = await this.findByUserNameOrEmail(signinDto.email);
+  async signIn(email: string, password: string) {
+    const user = await this.findByUserNameOrEmail(email);
     if (!user)
       throw new UnauthorizedException('Veuillez vérifier vos credentials !');
 
-    const isLoggedIn = await bcrypt.compare(signinDto.password, user.password);
+    const isLoggedIn = await bcrypt.compare(password, user.password);
     if (isLoggedIn) {
       const { password, ...payload } = user;
 
@@ -46,7 +46,15 @@ export class UsersService extends CrudService<User> {
 
   async create(createUserDto: CreateUserDTO): Promise<User> {
     const user = this.userRepository.create(createUserDto);
-    return await this.userRepository.save(user);
+    const salt = await bcrypt.genSalt();
+    user.password = await bcrypt.hash(user.password, salt);
+    try {
+      return await this.userRepository.save(user);
+    } catch (e) {
+      throw new ConflictException(
+        'Le username et le email doivent être unique',
+      );
+    }
   }
 
   findByUserNameOrEmail(identifier: string): Promise<User> {

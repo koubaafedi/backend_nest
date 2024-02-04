@@ -1,4 +1,5 @@
 import {
+  ConflictException,
   Injectable,
   NotFoundException,
   UnauthorizedException,
@@ -11,7 +12,6 @@ import { CreateOrganizerDto } from './dto/create-organizer.dto';
 import { UpdateOrganizerDto } from './dto/update-organizer.dto';
 import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
-import { SignInDTO } from './dto/sign-in.dto';
 
 @Injectable()
 export class OrganizersService extends CrudService<Organizer> {
@@ -24,21 +24,19 @@ export class OrganizersService extends CrudService<Organizer> {
   }
 
   async findOne(id: string): Promise<Organizer> {
+    console.log('m here');
     const organizer = await this.organizerRepository.findOneBy({ id: id });
     if (!organizer) {
       throw new NotFoundException(`Organizer with id=${id} was not found`);
     }
     return organizer;
   }
-  async signIn(signinDto: SignInDTO) {
-    const organizer = await this.findByOrganizerNameOrEmail(signinDto.email);
+  async signIn(email: string, password: string) {
+    const organizer = await this.findByOrganizerNameOrEmail(email);
     if (!organizer)
       throw new UnauthorizedException('Veuillez vérifier vos credentials !');
 
-    const isLoggedIn = await bcrypt.compare(
-      signinDto.password,
-      organizer.password,
-    );
+    const isLoggedIn = await bcrypt.compare(password, organizer.password);
     if (isLoggedIn) {
       const { password, ...payload } = organizer;
 
@@ -54,7 +52,13 @@ export class OrganizersService extends CrudService<Organizer> {
 
   async create(createOrganizerDto: CreateOrganizerDto): Promise<Organizer> {
     const organizer = this.organizerRepository.create(createOrganizerDto);
-    return await this.organizerRepository.save(organizer);
+    const salt = await bcrypt.genSalt();
+    organizer.password = await bcrypt.hash(organizer.password, salt);
+    try {
+      return await this.organizerRepository.save(organizer);
+    } catch (e) {
+      throw new ConflictException('Le name et le email doivent être unique');
+    }
   }
 
   async update(

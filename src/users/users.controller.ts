@@ -11,19 +11,18 @@ import { UsersService } from './users.service';
 import { CreateUserDTO } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { User } from './entities/user.entity';
-import { SignInDTO } from './dto/sign-in.dto';
+import { Public } from 'src/common/public-decorator';
 
 @Controller('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
+  @Public()
   @Post('signin')
-  signIn(@Body() signinDto: SignInDTO) {
-    console.log(signinDto);
-    
-    return this.usersService.signIn(signinDto);
+  signIn(@Body('email') email: string, @Body('password') password: string) {
+    return this.usersService.signIn(email, password);
   }
-
+  @Public()
   @Post('signup')
   signUp(@Body() createUserDto: CreateUserDTO): Promise<User> {
     return this.usersService.create(createUserDto);
